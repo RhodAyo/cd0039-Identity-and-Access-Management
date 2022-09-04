@@ -30,6 +30,23 @@ CORS(app)
 '''
 
 
+@app.route("/drinks", methods=['GET'])
+@requires_auth('get:drinks')
+def retrieve_drinks(jwt):
+    try:
+        drinks = Drink.query.order_by(Drink.id).all()
+        drink_lists = [drink.short() for drink in drinks]
+
+        return jsonify(
+            {
+                "success": True,
+                "drinks": drink_lists
+            }
+        ), 200
+    except:
+        abort(404)
+
+
 '''
 @TODO implement endpoint
     GET /drinks-detail
@@ -38,6 +55,23 @@ CORS(app)
     returns status code 200 and json {"success": True, "drinks": drinks} where drinks is the list of drinks
         or appropriate status code indicating reason for failure
 '''
+
+
+@app.route("/drinks-detail", methods=['GET'])
+@requires_auth('get:drinks-detail')
+def retrieve_drinks_detail(jwt):
+    try:
+        drinks = Drink.query.order_by(Drink.id).all()
+        drink_lists = [drink.long() for drink in drinks]
+
+        return jsonify(
+            {
+                "success": True,
+                "drinks": drink_lists
+            }
+        )
+    except:
+        abort(404)
 
 
 '''
@@ -49,6 +83,30 @@ CORS(app)
     returns status code 200 and json {"success": True, "drinks": drink} where drink an array containing only the newly created drink
         or appropriate status code indicating reason for failure
 '''
+
+
+@app.route("/drinks", methods=['POST'])
+@requires_auth('post:drinks')
+def create_drinks(jwt):
+    body = request.get_json()
+
+    title = body.get("title")
+    recipe = body.get("recipe")
+    try:
+        drink = Drink(title=title, recipe=json.dumps(recipe))
+        drink.insert()
+
+        # drinks = Drink.query.order_by(Drink.id).all()
+
+        return jsonify(
+            {
+                "success": True,
+                "drinks": [drink.long()]
+            }
+        ), 200
+
+    except:
+        abort(422)
 
 
 '''
@@ -64,6 +122,33 @@ CORS(app)
 '''
 
 
+@app.route("/drinks/<int:id>", methods=['PATCH'])
+@requires_auth('patch:drinks')
+def update_drinks(jwt, id):
+    drink = Drink.query.filter(Drink.id == id).one_or_none()
+    # drink.title = 'Black Coffee'
+    if drink:
+        try:
+            body = request.get_json()
+
+            title = body.get('title', None)
+            recipe = body.get('recipe', None)
+
+            if title:
+                drink.title = title
+            if recipe:
+                drink.recipe = json.dumps(recipe)
+            drink.update()
+            return jsonify({
+                'success': True,
+                'drinks': [drink.long()]
+            }), 200
+        except:
+            abort(422)
+    else:
+        abort(404)
+
+
 '''
 @TODO implement endpoint
     DELETE /drinks/<id>
@@ -74,6 +159,27 @@ CORS(app)
     returns status code 200 and json {"success": True, "delete": id} where id is the id of the deleted record
         or appropriate status code indicating reason for failure
 '''
+
+
+@app.route("/drinks/<int:id>", methods=['DELETE'])
+@requires_auth('delete:drinks')
+def delete_drinks(jwt, id):
+    get_drink = Drink.query.get(id)
+
+    if get_drink:
+        try:
+            get_drink.delete()
+
+            return jsonify({
+                'success': True,
+                'deleted_drink': id
+            }), 200
+
+        except:
+            abort(422)
+
+    else:
+        abort(404)
 
 
 # Error Handling
@@ -108,7 +214,34 @@ def unprocessable(error):
 '''
 
 
+@app.errorhandler(404)
+def resource_not_found(error):
+    return jsonify({
+        "success": False,
+        "error": 404,
+        "message": "resource not found"
+    }), 404
+
+
+@app.errorhandler(500)
+def server_error(error):
+    return jsonify({
+        "success": False,
+        "error": 500,
+        "message": "server error"
+    }), 500
+
+
 '''
 @TODO implement error handler for AuthError
     error handler should conform to general task above
 '''
+
+
+@app.errorhandler(AuthError)
+def auth_error(err):
+    return jsonify({
+        "success": False,
+        "error": err.status_code,
+        "message": err.error
+    })
